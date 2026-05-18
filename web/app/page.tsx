@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { LangProvider } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
-import type { Vocabulary, ReviewState } from "@/lib/types";
+import type { Vocabulary, ReviewState, StudySession } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { StudyList, ModePicker, HSK_TOTALS } from "@/components/StudyList";
@@ -31,6 +31,8 @@ function AppShell() {
   const [reviewStates, setReviewStates] = useState<Record<number, ReviewState>>({});
   const [loading, setLoading] = useState(true);
 
+  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+
   const [starred, setStarred] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [statusOverrides, setStatusOverrides] = useState<Record<string, 0 | 1 | 2 | 3>>({});
@@ -39,9 +41,10 @@ function AppShell() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [vocabRes, reviewRes] = await Promise.all([
+      const [vocabRes, reviewRes, sessionsRes] = await Promise.all([
         supabase.from("vocabularies").select("*").order("id"),
         supabase.from("review_states").select("*"),
+        supabase.from("study_sessions").select("study_date,reviewed_count").order("study_date"),
       ]);
       if (cancelled) return;
       if (vocabRes.data) {
@@ -58,6 +61,9 @@ function AppShell() {
           byId[r.vocab_id] = r;
         }
         setReviewStates(byId);
+      }
+      if (sessionsRes.data) {
+        setStudySessions(sessionsRes.data as StudySession[]);
       }
       setLoading(false);
     }
@@ -270,7 +276,7 @@ function AppShell() {
             onPickDeck={lv => setPickingLevel(lv)}
           />
         )}
-        {view === "stats" && <StatsPage levelStats={levelStats} totalLearned={totalLearned} />}
+        {view === "stats" && <StatsPage levelStats={levelStats} totalLearned={totalLearned} studySessions={studySessions} />}
         {view === "settings" && <SettingsPage />}
       </main>
 

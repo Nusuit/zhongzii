@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Icon } from "@/lib/icons";
 import { useLang } from "@/lib/i18n";
+import type { StudySession } from "@/lib/types";
 
 interface LevelAccuracy {
   level: number;
@@ -15,37 +16,45 @@ interface LevelAccuracy {
 interface StatsPageProps {
   levelStats?: LevelAccuracy[];
   totalLearned?: number;
+  studySessions?: StudySession[];
 }
 
 const HEAT_COLORS = ["#fbeef1", "#f6c8d2", "#e58aa0", "#d56a85", "#a83d57"];
 
-export function StatsPage({ levelStats, totalLearned = 0 }: StatsPageProps) {
+export function StatsPage({ levelStats, totalLearned = 0, studySessions = [] }: StatsPageProps) {
   const { t } = useLang();
   const [range, setRange] = useState("30");
 
   const heatmap = useMemo(() => {
+    const sessionMap = new Map<string, number>();
+    for (const s of studySessions) {
+      sessionMap.set(s.study_date.slice(0, 10), s.reviewed_count);
+    }
+    const today = new Date();
     const arr: number[] = [];
-    for (let i = 0; i < 84; i++) {
-      const recency = i / 84;
-      const rand = Math.random();
+    for (let i = 83; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const count = sessionMap.get(dateStr) ?? 0;
       let v: number;
-      if (rand < 0.1) v = 0;
-      else if (rand < 0.3 + recency * 0.2) v = 1;
-      else if (rand < 0.6 + recency * 0.15) v = 2;
-      else if (rand < 0.85) v = 3;
+      if (count === 0) v = 0;
+      else if (count < 10) v = 1;
+      else if (count < 20) v = 2;
+      else if (count < 30) v = 3;
       else v = 4;
       arr.push(v);
     }
     return arr;
-  }, []);
+  }, [studySessions]);
 
   const defaultStats: LevelAccuracy[] = [
-    { level: 1, total: 149, learned: 0, unsure: 0, weak: 0 },
-    { level: 2, total: 150, learned: 0, unsure: 0, weak: 0 },
-    { level: 3, total: 295, learned: 0, unsure: 0, weak: 0 },
-    { level: 4, total: 600, learned: 0, unsure: 0, weak: 0 },
-    { level: 5, total: 1295, learned: 0, unsure: 0, weak: 0 },
-    { level: 6, total: 2513, learned: 0, unsure: 0, weak: 0 },
+    { level: 1, total: 504, learned: 0, unsure: 0, weak: 0 },
+    { level: 2, total: 764, learned: 0, unsure: 0, weak: 0 },
+    { level: 3, total: 966, learned: 0, unsure: 0, weak: 0 },
+    { level: 4, total: 995, learned: 0, unsure: 0, weak: 0 },
+    { level: 5, total: 1448, learned: 0, unsure: 0, weak: 0 },
+    { level: 6, total: 1217, learned: 0, unsure: 0, weak: 0 },
   ];
 
   const accuracy = levelStats || defaultStats;
