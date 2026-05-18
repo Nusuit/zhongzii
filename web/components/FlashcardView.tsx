@@ -42,6 +42,7 @@ export function FlashcardView({
   const { t } = useLang();
   const listRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
+  const sessionCounts = useRef({ reviewed: 0, known: 0, hard: 0, unknown: 0, accessed: new Set<number>() });
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [search, setSearch] = useState("");
@@ -102,8 +103,43 @@ export function FlashcardView({
     setIdx(i => Math.max(i - 1, 0));
   }, []);
 
+  useEffect(() => {
+    sessionCounts.current.accessed.add(idx);
+  }, [idx]);
+
+  const handleExit = useCallback(async () => {
+    const c = sessionCounts.current;
+    if (c.reviewed > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase.from("study_sessions").select("*").eq("study_date", today).maybeSingle();
+      if (data) {
+        await supabase.from("study_sessions").update({
+          reviewed_count: data.reviewed_count + c.reviewed,
+          accessed_count: data.accessed_count + c.accessed.size,
+          known_count: data.known_count + c.known,
+          unknown_count: data.unknown_count + c.unknown,
+          hard_count: data.hard_count + c.hard,
+        }).eq("study_date", today);
+      } else {
+        await supabase.from("study_sessions").insert({
+          study_date: today,
+          reviewed_count: c.reviewed,
+          accessed_count: c.accessed.size,
+          known_count: c.known,
+          unknown_count: c.unknown,
+          hard_count: c.hard,
+        });
+      }
+    }
+    onExit();
+  }, [onExit]);
+
   const mark = useCallback(async (newStatus: 1 | 2 | 3) => {
     if (!current) return;
+    sessionCounts.current.reviewed++;
+    if (newStatus === 1) sessionCounts.current.known++;
+    else if (newStatus === 2) sessionCounts.current.hard++;
+    else sessionCounts.current.unknown++;
     onUpdateStatus(current.hanzi, newStatus);
 
     // status 1=learned→known, 2=unsure→hard, 3=weak→unknown
@@ -142,11 +178,11 @@ export function FlashcardView({
       else if (e.key === "3") mark(1);
       else if (e.key === "s" || e.key === "S") { if (current) onToggleStar(current.hanzi); }
       else if (e.key === "n" || e.key === "N") setShowNote(v => !v);
-      else if (e.key === "Escape") onExit();
+      else if (e.key === "Escape") handleExit();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onFlip, goNext, goPrev, mark, onExit, onToggleStar, current]);
+  }, [onFlip, goNext, goPrev, mark, handleExit, onToggleStar, current]);
 
   const speak = useCallback((text: string) => {
     if (!text || !window.speechSynthesis) return;
@@ -176,7 +212,7 @@ export function FlashcardView({
     <div className="flash-screen">
       <div className="flash-main">
         <div className="flash-topbar">
-          <button className="back-btn" onClick={onExit}>
+          <button className="back-btn" onClick={handleExit}>
             <Icon name="arrow-left" size={16} /> {t("back")}
           </button>
           <div className={`flash-status ${statusColor(currentStatus)}`}>

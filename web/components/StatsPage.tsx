@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Icon } from "@/lib/icons";
 import { useLang } from "@/lib/i18n";
 import type { StudySession } from "@/lib/types";
+import { computeStreak, computeAccuracy } from "@/lib/stats";
 
 interface LevelAccuracy {
   level: number;
@@ -24,6 +25,9 @@ const HEAT_COLORS = ["#fbeef1", "#f6c8d2", "#e58aa0", "#d56a85", "#a83d57"];
 export function StatsPage({ levelStats, totalLearned = 0, studySessions = [] }: StatsPageProps) {
   const { t } = useLang();
   const [range, setRange] = useState("30");
+
+  const streak = useMemo(() => computeStreak(studySessions), [studySessions]);
+  const accPct = useMemo(() => computeAccuracy(studySessions), [studySessions]);
 
   const heatmap = useMemo(() => {
     const sessionMap = new Map<string, number>();
@@ -87,8 +91,8 @@ export function StatsPage({ levelStats, totalLearned = 0, studySessions = [] }: 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 22 }}>
         {[
           { num: String(totalLearned), lbl: t("kpi_total"), ic: "check", color: "var(--green)", trend: t("this_week") },
-          { num: "—", lbl: t("kpi_streak"), ic: "flame", color: "var(--pink-deep)", trend: `${t("record")}: —` },
-          { num: "—", lbl: t("kpi_acc"), ic: "trophy", color: "var(--yellow)", trend: "" },
+          { num: streak.current ? String(streak.current) : "—", lbl: t("kpi_streak"), ic: "flame", color: "var(--pink-deep)", trend: `${t("record")}: ${streak.record || "—"}` },
+          { num: accPct !== null ? `${accPct}%` : "—", lbl: t("kpi_acc"), ic: "trophy", color: "var(--yellow)", trend: "" },
           { num: "—", lbl: t("kpi_minutes"), ic: "calendar", color: "var(--purple)", trend: t("average") },
         ].map(k => (
           <div key={k.lbl} className="card" style={{ padding: "20px 22px" }}>

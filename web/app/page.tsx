@@ -44,7 +44,7 @@ function AppShell() {
       const [vocabRes, reviewRes, sessionsRes] = await Promise.all([
         supabase.from("vocabularies").select("*").order("id"),
         supabase.from("review_states").select("*"),
-        supabase.from("study_sessions").select("study_date,reviewed_count").order("study_date"),
+        supabase.from("study_sessions").select("*").order("study_date"),
       ]);
       if (cancelled) return;
       if (vocabRes.data) {
@@ -232,6 +232,14 @@ function AppShell() {
     );
   }
 
+  const handleFlashExit = useCallback(() => {
+    setView("study");
+    setMode(null);
+    // Refetch sessions so Dashboard/Stats show updated data
+    supabase.from("study_sessions").select("*").order("study_date")
+      .then(({ data }) => { if (data) setStudySessions(data as StudySession[]); });
+  }, []);
+
   // FlashcardView is full-screen (no sidebar)
   if (view === "flash" && sessionWords.length > 0) {
     return (
@@ -241,7 +249,7 @@ function AppShell() {
         statuses={mergedStatuses}
         reviewStates={reviewStates}
         onUpdateStatus={handleUpdateStatus}
-        onExit={() => { setView("study"); setMode(null); }}
+        onExit={handleFlashExit}
         starred={starred}
         notes={notes}
         onToggleStar={toggleStar}
@@ -259,6 +267,7 @@ function AppShell() {
             stats={dashStats}
             statuses={mergedStatuses}
             recentVocab={allVocab}
+            studySessions={studySessions}
             onPickBucket={() => { setPickingLevel(1); }}
             onContinue={() => { setPickingLevel(1); }}
             onOpenWord={() => { setPickingLevel(1); }}

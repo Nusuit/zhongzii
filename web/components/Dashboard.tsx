@@ -3,8 +3,9 @@
 import { useMemo } from "react";
 import { Icon } from "@/lib/icons";
 import { useLang } from "@/lib/i18n";
-import type { Vocabulary } from "@/lib/types";
+import type { Vocabulary, StudySession } from "@/lib/types";
 import { HSK_TOTALS } from "./StudyList";
+import { computeStreak, computeWeekly } from "@/lib/stats";
 
 interface DashboardStats {
   learned: number;
@@ -18,6 +19,7 @@ interface DashboardProps {
   stats: DashboardStats;
   statuses: Record<string, 0 | 1 | 2 | 3>;
   recentVocab: Vocabulary[];
+  studySessions: StudySession[];
   onPickBucket: (bucket: string) => void;
   onContinue: () => void;
   onOpenWord: (word: Vocabulary) => void;
@@ -62,7 +64,7 @@ function timeGreeting(t: (k: string) => string) {
   return t("greet_evening");
 }
 
-export function Dashboard({ stats, statuses, recentVocab, onPickBucket, onContinue, onOpenWord }: DashboardProps) {
+export function Dashboard({ stats, statuses, recentVocab, studySessions, onPickBucket, onContinue, onOpenWord }: DashboardProps) {
   const { t, lang } = useLang();
 
   const segments = [
@@ -89,18 +91,9 @@ export function Dashboard({ stats, statuses, recentVocab, onPickBucket, onContin
       .slice(0, 6);
   }, [recentVocab, statuses]);
 
-  const history = useMemo(() => {
-    const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-    return days.map((d, i) => {
-      const seed = (i + 1) * 7;
-      return {
-        day: d,
-        green: (seed * 3) % 18 + 4,
-        yellow: (seed * 2) % 10 + 2,
-        red: seed % 7,
-      };
-    });
-  }, []);
+  const streak = useMemo(() => computeStreak(studySessions), [studySessions]);
+  const history = useMemo(() => computeWeekly(studySessions), [studySessions]);
+  const histMax = useMemo(() => Math.max(1, ...history.map(h => h.known + h.hard + h.unknown)), [history]);
 
   const todayTotal = stats.learned + stats.unsure + stats.weak + stats.newWords;
   const todayProgress = stats.learned;
@@ -257,28 +250,28 @@ export function Dashboard({ stats, statuses, recentVocab, onPickBucket, onContin
                   <span style={{ color: "var(--pink-deep)" }}><Icon name="flame" size={18} /></span>
                   <span className="streak-tag" style={{ marginTop: 0 }}>{t("current")}</span>
                 </div>
-                <div className="streak-num">— <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("days")}</span></div>
+                <div className="streak-num">{streak.current || "—"} <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("days")}</span></div>
               </div>
               <div className="streak-tile">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <span style={{ color: "var(--pink-deep)" }}><Icon name="trophy" size={18} /></span>
                   <span className="streak-tag" style={{ marginTop: 0 }}>{t("record")}</span>
                 </div>
-                <div className="streak-num">— <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("days")}</span></div>
+                <div className="streak-num">{streak.record || "—"} <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("days")}</span></div>
               </div>
               <div className="streak-tile">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <span style={{ color: "var(--pink-deep)" }}><Icon name="calendar" size={18} /></span>
                   <span className="streak-tag" style={{ marginTop: 0 }}>{t("this_week")}</span>
                 </div>
-                <div className="streak-num">{stats.learned} <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("words_unit")}</span></div>
+                <div className="streak-num">{history.reduce((a, h) => a + h.known + h.hard + h.unknown, 0) || "—"} <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("words_unit")}</span></div>
               </div>
               <div className="streak-tile">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <span style={{ color: "var(--pink-deep)" }}><Icon name="sparkle" size={16} /></span>
                   <span className="streak-tag" style={{ marginTop: 0 }}>{t("average")}</span>
                 </div>
-                <div className="streak-num">— <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("words_per_day")}</span></div>
+                <div className="streak-num">{streak.avgPerDay || "—"} <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink-soft)" }}>{t("words_per_day")}</span></div>
               </div>
             </div>
           </div>
@@ -339,9 +332,9 @@ export function Dashboard({ stats, statuses, recentVocab, onPickBucket, onContin
             {history.map((h, i) => (
               <div className="hist-col" key={i}>
                 <div className="hist-stack">
-                  <div className="hist-seg green" style={{ height: `${(h.green / 30) * 100}%` }}></div>
-                  <div className="hist-seg yellow" style={{ height: `${(h.yellow / 30) * 100}%` }}></div>
-                  <div className="hist-seg red" style={{ height: `${(h.red / 30) * 100}%` }}></div>
+                  <div className="hist-seg green" style={{ height: `${(h.known / histMax) * 100}%` }}></div>
+                  <div className="hist-seg yellow" style={{ height: `${(h.hard / histMax) * 100}%` }}></div>
+                  <div className="hist-seg red" style={{ height: `${(h.unknown / histMax) * 100}%` }}></div>
                 </div>
                 <div className="hist-label">{h.day}</div>
               </div>
