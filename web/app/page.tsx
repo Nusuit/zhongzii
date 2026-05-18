@@ -210,19 +210,13 @@ function AppShell() {
 
   const handleStartSession = useCallback((m: string) => {
     if (pickingLevel == null) return;
+    const words = vocabsByLevel[pickingLevel] || [];
+    if (words.length === 0) return; // DB empty — keep modal open, ModePicker shows warning
     setLevel(pickingLevel);
     setMode(m as StudyMode);
     setPickingLevel(null);
     setView("flash");
-  }, [pickingLevel]);
-
-  // Fall back to study list if flash view has no words (empty Supabase table)
-  useEffect(() => {
-    if (view === "flash" && !loading && sessionWords.length === 0) {
-      setView("study");
-      setMode(null);
-    }
-  }, [view, loading, sessionWords.length]);
+  }, [pickingLevel, vocabsByLevel]);
 
   if (loading) {
     return (
@@ -284,6 +278,7 @@ function AppShell() {
         <ModePicker
           level={pickingLevel}
           counts={modeCounts}
+          dbEmpty={(vocabsByLevel[pickingLevel] || []).length === 0}
           onChoose={handleStartSession}
           onClose={() => setPickingLevel(null)}
         />

@@ -77,11 +77,12 @@ export function StudyList({ progress, onPickDeck }: StudyListProps) {
 interface ModePickerProps {
   level: number;
   counts: { green: number; yellow: number; red: number; purple: number };
+  dbEmpty?: boolean;
   onChoose: (mode: string) => void;
   onClose: () => void;
 }
 
-export function ModePicker({ level, counts, onChoose, onClose }: ModePickerProps) {
+export function ModePicker({ level, counts, dbEmpty = false, onChoose, onClose }: ModePickerProps) {
   const { t } = useLang();
   const all = counts.green + counts.yellow + counts.red + counts.purple;
   const modes = [
@@ -97,7 +98,20 @@ export function ModePicker({ level, counts, onChoose, onClose }: ModePickerProps
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h3 className="modal-title">HSK {level} — {t("pick_mode")}</h3>
-        <div className="mode-list">
+        {dbEmpty && (
+          <div style={{
+            margin: "0 0 14px",
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: "#fff3cd",
+            color: "#856404",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}>
+            ⚠️ Chưa có từ vựng trong cơ sở dữ liệu. Cần chạy seed script để nạp dữ liệu.
+          </div>
+        )}
+        <div className="mode-list" style={{ opacity: dbEmpty ? 0.45 : 1, pointerEvents: dbEmpty ? "none" : "auto" }}>
           {modes.map(m => (
             <button key={m.id} className="mode-item" onClick={() => onChoose(m.id)}>
               <div className={`mode-ic ${m.ic}`}><Icon name={m.icon} size={16} stroke={2.2} /></div>
