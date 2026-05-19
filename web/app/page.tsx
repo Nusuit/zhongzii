@@ -231,6 +231,15 @@ function AppShell() {
     setView("flash");
   }, [buildSessionDeck, pickingLevel, vocabsByLevel]);
 
+  const handleFlashExit = useCallback(() => {
+    setView("study");
+    setMode(null);
+    setSessionDeck([]);
+    // Refetch sessions so Dashboard/Stats show updated data
+    supabase.from("study_sessions").select("*").order("study_date")
+      .then(({ data }) => { if (data) setStudySessions(data as StudySession[]); });
+  }, []);
+
   if (loading) {
     return (
       <div style={{
@@ -244,15 +253,6 @@ function AppShell() {
       </div>
     );
   }
-
-  const handleFlashExit = useCallback(() => {
-    setView("study");
-    setMode(null);
-    setSessionDeck([]);
-    // Refetch sessions so Dashboard/Stats show updated data
-    supabase.from("study_sessions").select("*").order("study_date")
-      .then(({ data }) => { if (data) setStudySessions(data as StudySession[]); });
-  }, []);
 
   // FlashcardView is full-screen (no sidebar)
   if (view === "flash" && sessionDeck.length > 0) {
