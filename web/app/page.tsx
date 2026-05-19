@@ -6,13 +6,52 @@ import { supabase } from "@/lib/supabase";
 import type { Vocabulary, ReviewState, Sm2Result, StudySession } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
-import { StudyList, ModePicker, HSK_TOTALS } from "@/components/StudyList";
+import { StudyList, ModePicker } from "@/components/StudyList";
 import { FlashcardView } from "@/components/FlashcardView";
 import { StatsPage } from "@/components/StatsPage";
 import { SettingsPage } from "@/components/SettingsPage";
+import bundledVocabularyRaw from "@/scripts/hanzii-vocab.json";
 
 type View = "dashboard" | "study" | "flash" | "stats" | "settings";
 type StudyMode = "all" | "new" | "learned" | "unsure" | "weak" | "shuffle";
+type BundledVocabulary = Omit<Vocabulary, "id">;
+
+const bundledVocabsByLevel = (bundledVocabularyRaw as BundledVocabulary[]).reduce<
+  Record<number, Vocabulary[]>
+>((byLevel, vocab, index) => {
+  const levelVocabs = byLevel[vocab.level] ?? [];
+  levelVocabs.push({ ...vocab, id: index + 1 });
+  byLevel[vocab.level] = levelVocabs;
+  return byLevel;
+}, {});
+
+function mergeBundledVocabulary(dbVocabs: Vocabulary[]): Record<number, Vocabulary[]> {
+  const dbByLevel: Record<number, Vocabulary[]> = {};
+  for (const vocab of dbVocabs) {
+    if (!dbByLevel[vocab.level]) dbByLevel[vocab.level] = [];
+    dbByLevel[vocab.level].push(vocab);
+  }
+
+  const merged: Record<number, Vocabulary[]> = {};
+  for (const lv of [1, 2, 3, 4, 5, 6]) {
+    const bundled = bundledVocabsByLevel[lv] ?? [];
+    const db = dbByLevel[lv] ?? [];
+    const dbByHanzi = new Map(db.map(vocab => [vocab.hanzi, vocab]));
+    const used = new Set<string>();
+    merged[lv] = bundled.map(vocab => {
+      const dbVocab = dbByHanzi.get(vocab.hanzi);
+      if (dbVocab) {
+        used.add(vocab.hanzi);
+        return dbVocab;
+      }
+      return vocab;
+    });
+    for (const vocab of db) {
+      if (!used.has(vocab.hanzi)) merged[lv].push(vocab);
+    }
+  }
+  return merged;
+}
 
 function getStatus(review: ReviewState | null | undefined): 0 | 1 | 2 | 3 {
   if (!review || review.last_quality == null) return 0;
@@ -48,14 +87,7 @@ function AppShell() {
         supabase.from("study_sessions").select("*").order("study_date"),
       ]);
       if (cancelled) return;
-      if (vocabRes.data) {
-        const byLevel: Record<number, Vocabulary[]> = {};
-        for (const v of vocabRes.data as Vocabulary[]) {
-          if (!byLevel[v.level]) byLevel[v.level] = [];
-          byLevel[v.level].push(v);
-        }
-        setVocabsByLevel(byLevel);
-      }
+      setVocabsByLevel(mergeBundledVocabulary((vocabRes.data ?? []) as Vocabulary[]));
       if (reviewRes.data) {
         const byId: Record<number, ReviewState> = {};
         for (const r of reviewRes.data as ReviewState[]) {
@@ -144,8 +176,7 @@ function AppShell() {
       else if (s === 3) weak++;
       else newWords++;
     }
-    const deckSize = HSK_TOTALS[1];
-    newWords += Math.max(0, deckSize - vocabs.length);
+    const deckSize = vocabs.length;
     return { learned, unsure, weak, newWords, deckSize };
   }, [vocabsByLevel, mergedStatuses]);
 
@@ -177,7 +208,6 @@ function AppShell() {
       else if (s === 3) r++;
       else p++;
     }
-    p += Math.max(0, (HSK_TOTALS[pickingLevel] || 0) - vocabs.length);
     return { green: g, yellow: y, red: r, purple: p };
   }, [pickingLevel, vocabsByLevel, mergedStatuses]);
 
@@ -194,9 +224,9 @@ function AppShell() {
 
   // Level stats for StatsPage
   const levelStats = useMemo(() =>
-    Object.entries(HSK_TOTALS).map(([lv, total]) => {
-      const lvNum = Number(lv);
+    [1, 2, 3, 4, 5, 6].map(lvNum => {
       const vocabs = vocabsByLevel[lvNum] || [];
+      const total = vocabs.length;
       let learned = 0, unsure = 0, weak = 0;
       for (const v of vocabs) {
         const s = mergedStatuses[v.hanzi] ?? 0;
@@ -216,6 +246,13 @@ function AppShell() {
     (vocabsByLevel[1] || []).concat(vocabsByLevel[2] || []),
     [vocabsByLevel]
   );
+  const levelTotals = useMemo(() => {
+    const totals: Record<number, number> = {};
+    for (const lv of [1, 2, 3, 4, 5, 6]) {
+      totals[lv] = (vocabsByLevel[lv] || []).length;
+    }
+    return totals;
+  }, [vocabsByLevel]);
 
   const handleStartSession = useCallback((m: string) => {
     if (pickingLevel == null) return;
@@ -290,6 +327,7 @@ function AppShell() {
         {view === "study" && (
           <StudyList
             progress={levelProgress}
+            levelTotals={levelTotals}
             onPickDeck={lv => setPickingLevel(lv)}
           />
         )}

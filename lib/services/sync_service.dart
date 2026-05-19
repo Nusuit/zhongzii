@@ -1,5 +1,4 @@
 import 'package:sqflite/sqflite.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'local_database.dart';
 import 'supabase_service.dart';
@@ -9,7 +8,8 @@ class SyncService {
 
   final LocalDatabase _database;
 
-  // Upload all vocabularies to Supabase once (skips if already done).
+  // Upload local mobile vocabularies only when Supabase is empty. The web app
+  // can use a different Hanzii-sourced dataset, so mobile should not overwrite it.
   Future<void> seedVocabulariesToSupabase() async {
     try {
       final countRes = await SupabaseService.client

@@ -20,13 +20,17 @@ interface LevelProgress {
 
 interface StudyListProps {
   progress: Record<number, LevelProgress>;
+  levelTotals: Record<number, number>;
   onPickDeck: (level: number) => void;
 }
 
-export function StudyList({ progress, onPickDeck }: StudyListProps) {
+export function StudyList({ progress, levelTotals, onPickDeck }: StudyListProps) {
   const { t } = useLang();
   const levels = [1, 2, 3, 4, 5, 6];
-  const totalVocab = Object.values(HSK_TOTALS).reduce((a, b) => a + b, 0);
+  const totalVocab = levels.reduce(
+    (sum, lv) => sum + (levelTotals[lv] ?? HSK_TOTALS[lv] ?? 0),
+    0,
+  );
 
   return (
     <div className="main-inner">
@@ -47,7 +51,7 @@ export function StudyList({ progress, onPickDeck }: StudyListProps) {
 
       <div className="hsk-grid">
         {levels.map(lv => {
-          const total = HSK_TOTALS[lv];
+          const total = levelTotals[lv] ?? HSK_TOTALS[lv] ?? 0;
           const p = progress[lv] || { learned: 0, unsure: 0, weak: 0 };
           const pct = Math.round((p.learned / total) * 100);
           return (

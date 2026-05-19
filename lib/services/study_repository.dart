@@ -30,35 +30,50 @@ class StudyRepository {
     void Function(int inserted, int total)? onProgress,
   }) async {
     final db = await _database.instance;
-    final existing = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM vocabularies'));
-    if ((existing ?? 0) > 0) {
-      onProgress?.call(hardcodedVocabulary.length, hardcodedVocabulary.length);
-      return;
-    }
-
     final ranges = chunkRanges(hardcodedVocabulary.length, chunkSize);
-    var inserted = 0;
+    final existingRows = await db.query(
+      'vocabularies',
+      columns: ['id', 'level', 'hanzi'],
+    );
+    final existingIdsByKey = <String, int>{
+      for (final row in existingRows)
+        _vocabKey(row['level'] as int, row['hanzi'] as String):
+            row['id'] as int,
+    };
+    var processed = 0;
 
     for (final range in ranges) {
       final batch = db.batch();
       for (var i = range.start; i < range.endExclusive; i++) {
         final record = hardcodedVocabulary[i];
-        batch.insert(
-          'vocabularies',
-          {
-            'level': record.level,
-            'hanzi': record.hanzi,
-            'pinyin': record.pinyin,
-            'meaning': record.meaning,
-            'example': record.example,
-          },
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
+        final values = {
+          'level': record.level,
+          'hanzi': record.hanzi,
+          'pinyin': record.pinyin,
+          'meaning': record.meaning,
+          'example': record.example,
+        };
+        final existingId =
+            existingIdsByKey[_vocabKey(record.level, record.hanzi)];
+        if (existingId == null) {
+          batch.insert(
+            'vocabularies',
+            values,
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        } else {
+          batch.update(
+            'vocabularies',
+            values,
+            where: 'id = ?',
+            whereArgs: [existingId],
+          );
+        }
       }
 
       await batch.commit(noResult: true);
-      inserted = range.endExclusive;
-      onProgress?.call(inserted, hardcodedVocabulary.length);
+      processed = range.endExclusive;
+      onProgress?.call(processed, hardcodedVocabulary.length);
 
       // Yield once per chunk so first-launch UI remains responsive.
       await Future<void>.delayed(Duration.zero);
@@ -402,6 +417,8 @@ class StudyRepository {
         return 1;
     }
   }
+
+  String _vocabKey(int level, String hanzi) => '$level::$hanzi';
 
   StudyCardCacheEntry _rowToCacheEntry(Map<String, Object?> row) {
     final vocabulary = VocabularyItem(
