@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { LangProvider } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
-import type { Vocabulary, ReviewState, StudySession } from "@/lib/types";
+import type { Vocabulary, ReviewState, Sm2Result, StudySession } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { StudyList, ModePicker, HSK_TOTALS } from "@/components/StudyList";
@@ -26,6 +26,7 @@ function AppShell() {
   const [level, setLevel] = useState(1);
   const [mode, setMode] = useState<StudyMode | null>(null);
   const [pickingLevel, setPickingLevel] = useState<number | null>(null);
+  const [sessionDeck, setSessionDeck] = useState<Vocabulary[]>([]);
 
   const [vocabsByLevel, setVocabsByLevel] = useState<Record<number, Vocabulary[]>>({});
   const [reviewStates, setReviewStates] = useState<Record<number, ReviewState>>({});
@@ -100,8 +101,18 @@ function AppShell() {
     [baseStatuses, statusOverrides]
   );
 
-  const handleUpdateStatus = useCallback((hanzi: string, status: 0 | 1 | 2 | 3) => {
+  const handleUpdateStatus = useCallback((hanzi: string, status: 0 | 1 | 2 | 3, vocabId?: number, review?: Sm2Result) => {
     setStatusOverrides(prev => ({ ...prev, [hanzi]: status }));
+    if (vocabId != null && review) {
+      setReviewStates(prev => ({
+        ...prev,
+        [vocabId]: {
+          vocab_id: vocabId,
+          ...review,
+          updated_at: prev[vocabId]?.updated_at ?? null,
+        },
+      }));
+    }
   }, []);
 
   const toggleStar = useCallback((hanzi: string) => {
@@ -170,18 +181,16 @@ function AppShell() {
     return { green: g, yellow: y, red: r, purple: p };
   }, [pickingLevel, vocabsByLevel, mergedStatuses]);
 
-  // Session words
-  const sessionWords = useMemo(() => {
-    if (!mode || !level) return [];
-    const words = vocabsByLevel[level] || [];
-    if (mode === "all") return words;
-    if (mode === "shuffle") return [...words].sort(() => Math.random() - 0.5);
-    if (mode === "new") return words.filter(w => (mergedStatuses[w.hanzi] ?? 0) === 0);
-    if (mode === "learned") return words.filter(w => mergedStatuses[w.hanzi] === 1);
-    if (mode === "unsure") return words.filter(w => mergedStatuses[w.hanzi] === 2);
-    if (mode === "weak") return words.filter(w => mergedStatuses[w.hanzi] === 3);
+  const buildSessionDeck = useCallback((lv: number, m: StudyMode) => {
+    const words = vocabsByLevel[lv] || [];
+    if (m === "all") return words;
+    if (m === "shuffle") return [...words].sort(() => Math.random() - 0.5);
+    if (m === "new") return words.filter(w => (mergedStatuses[w.hanzi] ?? 0) === 0);
+    if (m === "learned") return words.filter(w => mergedStatuses[w.hanzi] === 1);
+    if (m === "unsure") return words.filter(w => mergedStatuses[w.hanzi] === 2);
+    if (m === "weak") return words.filter(w => mergedStatuses[w.hanzi] === 3);
     return words;
-  }, [mode, level, vocabsByLevel, mergedStatuses]);
+  }, [vocabsByLevel, mergedStatuses]);
 
   // Level stats for StatsPage
   const levelStats = useMemo(() =>
@@ -212,11 +221,15 @@ function AppShell() {
     if (pickingLevel == null) return;
     const words = vocabsByLevel[pickingLevel] || [];
     if (words.length === 0) return; // DB empty — keep modal open, ModePicker shows warning
+    const pickedMode = m as StudyMode;
+    const deck = buildSessionDeck(pickingLevel, pickedMode);
+    if (deck.length === 0) return;
     setLevel(pickingLevel);
-    setMode(m as StudyMode);
+    setMode(pickedMode);
+    setSessionDeck(deck);
     setPickingLevel(null);
     setView("flash");
-  }, [pickingLevel, vocabsByLevel]);
+  }, [buildSessionDeck, pickingLevel, vocabsByLevel]);
 
   if (loading) {
     return (
@@ -235,17 +248,18 @@ function AppShell() {
   const handleFlashExit = useCallback(() => {
     setView("study");
     setMode(null);
+    setSessionDeck([]);
     // Refetch sessions so Dashboard/Stats show updated data
     supabase.from("study_sessions").select("*").order("study_date")
       .then(({ data }) => { if (data) setStudySessions(data as StudySession[]); });
   }, []);
 
   // FlashcardView is full-screen (no sidebar)
-  if (view === "flash" && sessionWords.length > 0) {
+  if (view === "flash" && sessionDeck.length > 0) {
     return (
       <FlashcardView
         level={level}
-        words={sessionWords}
+        words={sessionDeck}
         statuses={mergedStatuses}
         reviewStates={reviewStates}
         onUpdateStatus={handleUpdateStatus}

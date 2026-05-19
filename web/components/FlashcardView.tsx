@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Icon } from "@/lib/icons";
 import { useLang } from "@/lib/i18n";
-import type { Vocabulary, ReviewState } from "@/lib/types";
+import type { Vocabulary, ReviewState, Sm2Result } from "@/lib/types";
 import { sm2, qualityFromAnswer } from "@/lib/sm2";
 import { supabase } from "@/lib/supabase";
 
@@ -19,7 +19,7 @@ interface FlashcardViewProps {
   words: Vocabulary[];
   statuses: Record<string, 0 | 1 | 2 | 3>;
   reviewStates: Record<number, ReviewState>;
-  onUpdateStatus: (hanzi: string, status: 0 | 1 | 2 | 3) => void;
+  onUpdateStatus: (hanzi: string, status: 0 | 1 | 2 | 3, vocabId?: number, review?: Sm2Result) => void;
   onExit: () => void;
   starred: Record<string, boolean>;
   notes: Record<string, string>;
@@ -140,13 +140,11 @@ export function FlashcardView({
     if (newStatus === 1) sessionCounts.current.known++;
     else if (newStatus === 2) sessionCounts.current.hard++;
     else sessionCounts.current.unknown++;
-    onUpdateStatus(current.hanzi, newStatus);
-
-    // status 1=learned→known, 2=unsure→hard, 3=weak→unknown
+    // status 1=learned→known, 2=unsure→unknown, 3=weak→hard
     const qualityMap: Record<1 | 2 | 3, "known" | "hard" | "unknown"> = {
       1: "known",
-      2: "hard",
-      3: "unknown",
+      2: "unknown",
+      3: "hard",
     };
     const quality = qualityFromAnswer(qualityMap[newStatus]);
     const existing = reviewStates[current.id];
@@ -158,6 +156,8 @@ export function FlashcardView({
     } : { repetition: 0, interval_days: 0, ease_factor: 2.5, lapses: 0 };
 
     const result = sm2(quality, prevState);
+    onUpdateStatus(current.hanzi, newStatus, current.id, result);
+
     await supabase.from("review_states").upsert({
       vocab_id: current.id,
       ...result,
@@ -389,7 +389,7 @@ export function FlashcardView({
             <span>{t("unsure")}</span>
             <span className="flash-btn-key">2</span>
           </button>
-          <button className="flash-btn green" onClick={() => mark(3)} title={`${t("learned")} (3)`}>
+          <button className="flash-btn green" onClick={() => mark(1)} title={`${t("learned")} (3)`}>
             <div className="flash-btn-ic"><Icon name="check" size={18} stroke={2.4} /></div>
             <span>{t("learned")}</span>
             <span className="flash-btn-key">3</span>
