@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "enrich:vocab": "node scripts/enrich-vocab.mjs",
     "start": "next start",
     "lint": "eslint"
   },

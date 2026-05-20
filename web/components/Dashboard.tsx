@@ -29,7 +29,7 @@ interface DashboardProps {
   onOpenWord: (word: Vocabulary) => void;
 }
 
-function Donut({ segments, size = 180, thickness = 18 }: {
+function Donut({ segments, size = 200, thickness = 18 }: {
   segments: { value: number; color: string }[];
   size?: number;
   thickness?: number;
@@ -46,7 +46,7 @@ function Donut({ segments, size = 180, thickness = 18 }: {
     [],
   );
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="donut-svg">
       <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--pink-pale)" strokeWidth={thickness} fill="none" />
       {arcs.map((seg, i) => (
           <circle key={i}
