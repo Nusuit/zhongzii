@@ -5,9 +5,13 @@ import { Icon } from "@/lib/icons";
 import { useLang } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
 
-export function SettingsPage() {
+interface SettingsPageProps {
+  dailyGoal?: number;
+  onDailyGoalChange?: (goal: number) => void;
+}
+
+export function SettingsPage({ dailyGoal = 20, onDailyGoalChange }: SettingsPageProps) {
   const { t, lang, setLang } = useLang();
-  const [goal, setGoal] = useState(20);
   const [reminderTime, setReminderTime] = useState("19:00");
   const [reminderOn, setReminderOn] = useState(true);
   const [autoFlip, setAutoFlip] = useState(false);
@@ -147,14 +151,17 @@ export function SettingsPage() {
       <Section title={t("sec_goal")} sub={t("sec_goal_sub")}>
         <Row label={t("daily_goal")} hint={t("daily_goal_hint")}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input type="range" min="5" max="100" step="5" value={goal}
-              onChange={e => setGoal(+e.target.value)}
+            <input type="range" min="5" max="100" step="5" value={dailyGoal}
+              onChange={e => {
+                const nextGoal = +e.target.value;
+                onDailyGoalChange?.(nextGoal);
+              }}
               style={{ width: 160, accentColor: "var(--pink-deep)" }} />
             <div style={{
               minWidth: 60, textAlign: "center",
               background: "var(--pink-pale)", color: "var(--pink-deep)",
               padding: "5px 10px", borderRadius: 8, fontWeight: 600, fontSize: 13,
-            }}>{goal} {t("words_unit")}</div>
+            }}>{dailyGoal} {t("words_unit")}</div>
           </div>
         </Row>
         <Row label={t("daily_reminder")} hint={t("daily_reminder_hint")}>

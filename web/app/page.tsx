@@ -10,6 +10,7 @@ import { StudyList, ModePicker } from "@/components/StudyList";
 import { FlashcardView } from "@/components/FlashcardView";
 import { StatsPage } from "@/components/StatsPage";
 import { SettingsPage } from "@/components/SettingsPage";
+import { enrichVocabulary } from "@/lib/vocab-enrichment";
 import bundledVocabularyRaw from "@/scripts/hanzii-vocab.json";
 
 type View = "dashboard" | "study" | "flash" | "stats" | "settings";
@@ -20,7 +21,7 @@ const bundledVocabsByLevel = (bundledVocabularyRaw as BundledVocabulary[]).reduc
   Record<number, Vocabulary[]>
 >((byLevel, vocab, index) => {
   const levelVocabs = byLevel[vocab.level] ?? [];
-  levelVocabs.push({ ...vocab, id: index + 1 });
+  levelVocabs.push(enrichVocabulary({ ...vocab, id: index + 1 }));
   byLevel[vocab.level] = levelVocabs;
   return byLevel;
 }, {});
@@ -29,7 +30,7 @@ function mergeBundledVocabulary(dbVocabs: Vocabulary[]): Record<number, Vocabula
   const dbByLevel: Record<number, Vocabulary[]> = {};
   for (const vocab of dbVocabs) {
     if (!dbByLevel[vocab.level]) dbByLevel[vocab.level] = [];
-    dbByLevel[vocab.level].push(vocab);
+    dbByLevel[vocab.level].push(enrichVocabulary(vocab));
   }
 
   const merged: Record<number, Vocabulary[]> = {};
@@ -63,8 +64,13 @@ function getStatus(review: ReviewState | null | undefined): 0 | 1 | 2 | 3 {
 function AppShell() {
   const [view, setView] = useState<View>("dashboard");
   const [level, setLevel] = useState(1);
-  const [mode, setMode] = useState<StudyMode | null>(null);
   const [pickingLevel, setPickingLevel] = useState<number | null>(null);
+  const [dashboardLevel, setDashboardLevel] = useState<number | null>(1);
+  const [dailyGoal, setDailyGoal] = useState(() => {
+    if (typeof window === "undefined") return 20;
+    const goal = Number(localStorage.getItem("xh-daily-goal"));
+    return Number.isFinite(goal) && goal > 0 ? goal : 20;
+  });
   const [sessionDeck, setSessionDeck] = useState<Vocabulary[]>([]);
 
   const [vocabsByLevel, setVocabsByLevel] = useState<Record<number, Vocabulary[]>>({});
@@ -73,8 +79,24 @@ function AppShell() {
 
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
 
-  const [starred, setStarred] = useState<Record<string, boolean>>({});
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [starred, setStarred] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const saved = localStorage.getItem("xh-starred");
+      return saved ? JSON.parse(saved) as Record<string, boolean> : {};
+    } catch {
+      return {};
+    }
+  });
+  const [notes, setNotes] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const saved = localStorage.getItem("xh-notes");
+      return saved ? JSON.parse(saved) as Record<string, string> : {};
+    } catch {
+      return {};
+    }
+  });
   const [statusOverrides, setStatusOverrides] = useState<Record<string, 0 | 1 | 2 | 3>>({});
 
   // Load vocab + review states from Supabase
@@ -104,14 +126,8 @@ function AppShell() {
     return () => { cancelled = true; };
   }, []);
 
-  // Restore starred/notes/theme from localStorage
+  // Restore theme from localStorage
   useEffect(() => {
-    try {
-      const s = localStorage.getItem("xh-starred");
-      if (s) setStarred(JSON.parse(s));
-      const n = localStorage.getItem("xh-notes");
-      if (n) setNotes(JSON.parse(n));
-    } catch { /* ignore */ }
     const savedTheme = localStorage.getItem("xh-theme") || "pink";
     document.body.setAttribute("data-theme", savedTheme);
   }, []);
@@ -167,7 +183,9 @@ function AppShell() {
 
   // Dashboard stats (for HSK 1 donut)
   const dashStats = useMemo(() => {
-    const vocabs = vocabsByLevel[1] || [];
+    const vocabs = dashboardLevel == null
+      ? Object.values(vocabsByLevel).flat()
+      : (vocabsByLevel[dashboardLevel] || []);
     let learned = 0, unsure = 0, weak = 0, newWords = 0;
     for (const v of vocabs) {
       const s = mergedStatuses[v.hanzi] ?? 0;
@@ -178,7 +196,7 @@ function AppShell() {
     }
     const deckSize = vocabs.length;
     return { learned, unsure, weak, newWords, deckSize };
-  }, [vocabsByLevel, mergedStatuses]);
+  }, [dashboardLevel, vocabsByLevel, mergedStatuses]);
 
   // Level progress for StudyList
   const levelProgress = useMemo(() => {
@@ -243,7 +261,7 @@ function AppShell() {
 
   // Vocab for Dashboard word-of-day + recent
   const allVocab = useMemo(() =>
-    (vocabsByLevel[1] || []).concat(vocabsByLevel[2] || []),
+    Object.values(vocabsByLevel).flat(),
     [vocabsByLevel]
   );
   const levelTotals = useMemo(() => {
@@ -254,23 +272,37 @@ function AppShell() {
     return totals;
   }, [vocabsByLevel]);
 
-  const handleStartSession = useCallback((m: string) => {
-    if (pickingLevel == null) return;
-    const words = vocabsByLevel[pickingLevel] || [];
+  const startSession = useCallback((lv: number, pickedMode: StudyMode) => {
+    const words = vocabsByLevel[lv] || [];
     if (words.length === 0) return; // DB empty — keep modal open, ModePicker shows warning
-    const pickedMode = m as StudyMode;
-    const deck = buildSessionDeck(pickingLevel, pickedMode);
+    const deck = buildSessionDeck(lv, pickedMode);
     if (deck.length === 0) return;
-    setLevel(pickingLevel);
-    setMode(pickedMode);
+    setLevel(lv);
     setSessionDeck(deck);
     setPickingLevel(null);
     setView("flash");
-  }, [buildSessionDeck, pickingLevel, vocabsByLevel]);
+  }, [buildSessionDeck, vocabsByLevel]);
+
+  const handleStartSession = useCallback((m: string) => {
+    if (pickingLevel == null) return;
+    startSession(pickingLevel, m as StudyMode);
+  }, [pickingLevel, startSession]);
+
+  const openDashboardBucket = useCallback((bucket: string) => {
+    const targetLevel = dashboardLevel ?? 1;
+    if (bucket === "learned") startSession(targetLevel, "learned");
+    else if (bucket === "unsure") startSession(targetLevel, "unsure");
+    else if (bucket === "weak") startSession(targetLevel, "weak");
+    else if (bucket === "new") startSession(targetLevel, "new");
+  }, [dashboardLevel, startSession]);
+
+  const handleDailyGoalChange = useCallback((goal: number) => {
+    setDailyGoal(goal);
+    try { localStorage.setItem("xh-daily-goal", String(goal)); } catch { /* ignore */ }
+  }, []);
 
   const handleFlashExit = useCallback(() => {
     setView("study");
-    setMode(null);
     setSessionDeck([]);
     // Refetch sessions so Dashboard/Stats show updated data
     supabase.from("study_sessions").select("*").order("study_date")
@@ -317,11 +349,18 @@ function AppShell() {
           <Dashboard
             stats={dashStats}
             statuses={mergedStatuses}
+            reviewStates={reviewStates}
             recentVocab={allVocab}
             studySessions={studySessions}
-            onPickBucket={() => { setPickingLevel(1); }}
-            onContinue={() => { setPickingLevel(1); }}
-            onOpenWord={() => { setPickingLevel(1); }}
+            selectedLevel={dashboardLevel}
+            levelTotals={levelTotals}
+            dailyGoal={dailyGoal}
+            onLevelChange={setDashboardLevel}
+            onPickBucket={openDashboardBucket}
+            onContinue={() => { setPickingLevel(dashboardLevel ?? 1); }}
+            onOpenWord={(word) => {
+              startSession(word.level, "all");
+            }}
           />
         )}
         {view === "study" && (
@@ -332,7 +371,12 @@ function AppShell() {
           />
         )}
         {view === "stats" && <StatsPage levelStats={levelStats} totalLearned={totalLearned} studySessions={studySessions} />}
-        {view === "settings" && <SettingsPage />}
+        {view === "settings" && (
+          <SettingsPage
+            dailyGoal={dailyGoal}
+            onDailyGoalChange={handleDailyGoalChange}
+          />
+        )}
       </main>
 
       {pickingLevel != null && (

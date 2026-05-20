@@ -3,8 +3,7 @@
 import { useMemo } from "react";
 import { Icon } from "@/lib/icons";
 import { useLang } from "@/lib/i18n";
-import type { Vocabulary, StudySession } from "@/lib/types";
-import { HSK_TOTALS } from "./StudyList";
+import type { Vocabulary, StudySession, ReviewState } from "@/lib/types";
 import { computeStreak, computeWeekly } from "@/lib/stats";
 
 interface DashboardStats {
@@ -18,8 +17,13 @@ interface DashboardStats {
 interface DashboardProps {
   stats: DashboardStats;
   statuses: Record<string, 0 | 1 | 2 | 3>;
+  reviewStates: Record<number, ReviewState>;
   recentVocab: Vocabulary[];
   studySessions: StudySession[];
+  selectedLevel: number | null;
+  levelTotals: Record<number, number>;
+  dailyGoal: number;
+  onLevelChange: (level: number | null) => void;
   onPickBucket: (bucket: string) => void;
   onContinue: () => void;
   onOpenWord: (word: Vocabulary) => void;
@@ -33,25 +37,27 @@ function Donut({ segments, size = 180, thickness = 18 }: {
   const r = size / 2 - thickness / 2;
   const c = 2 * Math.PI * r;
   const total = segments.reduce((s, x) => s + x.value, 0) || 1;
-  let offset = 0;
+  const arcs = segments.reduce<{ value: number; color: string; offset: number; len: number }[]>(
+    (items, seg) => {
+      const offset = items.reduce((sum, item) => sum + item.len, 0);
+      const len = (seg.value / total) * c;
+      return [...items, { ...seg, offset, len }];
+    },
+    [],
+  );
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--pink-pale)" strokeWidth={thickness} fill="none" />
-      {segments.map((seg, i) => {
-        const len = (seg.value / total) * c;
-        const el = (
+      {arcs.map((seg, i) => (
           <circle key={i}
             cx={size / 2} cy={size / 2} r={r}
             stroke={seg.color} strokeWidth={thickness} fill="none"
-            strokeDasharray={`${len} ${c - len}`}
-            strokeDashoffset={-offset}
+            strokeDasharray={`${seg.len} ${c - seg.len}`}
+            strokeDashoffset={-seg.offset}
             strokeLinecap="round"
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
           />
-        );
-        offset += len;
-        return el;
-      })}
+      ))}
     </svg>
   );
 }
@@ -64,7 +70,20 @@ function timeGreeting(t: (k: string) => string) {
   return t("greet_evening");
 }
 
-export function Dashboard({ stats, statuses, recentVocab, studySessions, onPickBucket, onContinue, onOpenWord }: DashboardProps) {
+export function Dashboard({
+  stats,
+  statuses,
+  reviewStates,
+  recentVocab,
+  studySessions,
+  selectedLevel,
+  levelTotals,
+  dailyGoal,
+  onLevelChange,
+  onPickBucket,
+  onContinue,
+  onOpenWord,
+}: DashboardProps) {
   const { t, lang } = useLang();
 
   const segments = [
@@ -86,19 +105,25 @@ export function Dashboard({ stats, statuses, recentVocab, studySessions, onPickB
 
   const recent = useMemo(() => {
     return recentVocab
-      .map(w => ({ w, s: statuses[w.hanzi] ?? 0 as 0 | 1 | 2 | 3 }))
+      .map(w => ({
+        w,
+        s: statuses[w.hanzi] ?? 0 as 0 | 1 | 2 | 3,
+        lastReviewed: reviewStates[w.id]?.last_reviewed ?? "",
+      }))
       .filter(x => x.s > 0)
-      .slice(0, 6);
-  }, [recentVocab, statuses]);
+      .sort((a, b) => b.lastReviewed.localeCompare(a.lastReviewed))
+      .slice(0, 10);
+  }, [recentVocab, reviewStates, statuses]);
 
   const streak = useMemo(() => computeStreak(studySessions), [studySessions]);
   const history = useMemo(() => computeWeekly(studySessions), [studySessions]);
   const histMax = useMemo(() => Math.max(1, ...history.map(h => h.known + h.hard + h.unknown)), [history]);
 
-  const todayTotal = stats.learned + stats.unsure + stats.weak + stats.newWords;
-  const todayProgress = stats.learned;
-  const continuingCount = stats.unsure + stats.weak > 0 ? (stats.unsure + stats.weak) : Math.min(12, stats.newWords);
-  const continuingNext = stats.unsure + stats.weak > 0 ? t("review_practice") : t("new_words");
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todaySession = studySessions.find(s => s.study_date.slice(0, 10) === todayKey);
+  const todayProgress = todaySession?.reviewed_count ?? 0;
+  const goalPct = dailyGoal > 0 ? Math.min(100, Math.round((todayProgress / dailyGoal) * 100)) : 0;
+  const levels = [1, 2, 3, 4, 5, 6];
 
   return (
     <div className="main-inner">
@@ -106,6 +131,23 @@ export function Dashboard({ stats, statuses, recentVocab, studySessions, onPickB
         <div>
           <h1 className="page-title">{greeting}, Hà 👋</h1>
           <p className="page-sub">{t("dash_sub")}</p>
+        </div>
+        <div className="dash-filter">
+          <button
+            className={`dash-filter-item ${selectedLevel == null ? "active" : ""}`}
+            onClick={() => onLevelChange(null)}
+          >
+            All
+          </button>
+          {levels.map(level => (
+            <button
+              key={level}
+              className={`dash-filter-item ${selectedLevel === level ? "active" : ""}`}
+              onClick={() => onLevelChange(level)}
+            >
+              HSK {level}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -130,20 +172,20 @@ export function Dashboard({ stats, statuses, recentVocab, studySessions, onPickB
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 10.5, opacity: 0.85, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>
-            {t("continue_from")} 1
+            Tiến độ mục tiêu ngày
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.25, marginBottom: 3 }}>
-            {t("session_today")} — {continuingCount} {continuingNext}
+            Hôm nay — {todayProgress} / {dailyGoal} từ đã ôn
           </div>
           <div style={{ fontSize: 12.5, opacity: 0.9 }}>
-            {todayProgress} / {todayTotal || 1} {t("of_words_reviewed")}
+            Mục tiêu được đặt trong Cài đặt
           </div>
         </div>
         <div style={{ minWidth: 90, textAlign: "right" }}>
           <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em" }}>
-            {todayTotal > 0 ? Math.round((todayProgress / todayTotal) * 100) : 0}%
+            {goalPct}%
           </div>
-          <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>{t("goal")}</div>
+          <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>mục tiêu</div>
         </div>
       </button>
 
@@ -154,7 +196,9 @@ export function Dashboard({ stats, statuses, recentVocab, studySessions, onPickB
             <div className="donut-center">
               <div>
                 <div className="donut-num">{total}</div>
-                <div className="donut-label">{t("on_total")} {stats.deckSize} {t("vocab_unit")}</div>
+                <div className="donut-label">
+                  trên {stats.deckSize || levelTotals[selectedLevel ?? 1] || 0} {t("vocab_unit")}
+                </div>
               </div>
             </div>
           </div>
@@ -328,7 +372,7 @@ export function Dashboard({ stats, statuses, recentVocab, studySessions, onPickB
             }}>{t("range_7")}</div>
           </div>
 
-          <div className="history-chart" style={{ "--cols": 7 } as React.CSSProperties & { "--cols": number }}>
+          <div className="history-chart history-chart-card" style={{ "--cols": 7 } as React.CSSProperties & { "--cols": number }}>
             {history.map((h, i) => (
               <div className="hist-col" key={i}>
                 <div className="hist-stack">

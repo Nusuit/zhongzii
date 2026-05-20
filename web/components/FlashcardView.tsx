@@ -243,140 +243,139 @@ export function FlashcardView({
           </div>
         </div>
 
-        <div className="card-stage">
-          <div className={`flash-card ${flipped ? "flipped" : ""}`} onClick={onFlip}>
-            <div className="flash-face front">
-              <div className="hanzi-big">{current.hanzi}</div>
-              <div style={{ position: "absolute", top: 22, right: 22, display: "flex", gap: 8 }}>
-                <button
-                  onClick={e => { e.stopPropagation(); onToggleStar(current.hanzi); }}
-                  title="Ghim từ này (S)"
-                  style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: isStarred ? "#fbe7a3" : "var(--pink-pale)",
-                    color: isStarred ? "#a87810" : "var(--pink-deep)",
-                    display: "grid", placeItems: "center",
-                    fontSize: 18, transition: "background .12s",
-                  }}>
-                  {isStarred ? "★" : "☆"}
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); speak(current.hanzi); }}
-                  style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: "var(--pink-pale)", color: "var(--pink-deep)",
-                    display: "grid", placeItems: "center",
-                  }}
-                  title="Phát âm">
-                  <Icon name="speaker" size={18} />
-                </button>
-              </div>
-              <div className="flash-hint">
-                {t("flip_hint_1")} <span className="kbd">Space</span> {t("flip_hint_2")}
-              </div>
-            </div>
-
-            <div className="flash-face back">
-              <div style={{ position: "absolute", top: 22, right: 22, display: "flex", gap: 8 }}>
-                <button
-                  onClick={e => { e.stopPropagation(); onToggleStar(current.hanzi); }}
-                  style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: isStarred ? "#fbe7a3" : "var(--pink-pale)",
-                    color: isStarred ? "#a87810" : "var(--pink-deep)",
-                    display: "grid", placeItems: "center",
-                    fontSize: 18,
-                  }}>
-                  {isStarred ? "★" : "☆"}
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setShowNote(v => !v); }}
-                  title="Ghi chú cá nhân (N)"
-                  style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: showNote ? "var(--pink)" : "var(--pink-pale)",
-                    color: showNote ? "#fff" : "var(--pink-deep)",
-                    display: "grid", placeItems: "center",
-                    position: "relative",
-                  }}>
-                  <Icon name="book" size={16} />
-                  {noteValue && (
-                    <span style={{
-                      position: "absolute", top: 4, right: 4,
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: "var(--pink-deep)", border: "2px solid var(--surface)",
-                    }}></span>
-                  )}
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); speak(current.hanzi); }}
-                  style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: "var(--pink-pale)", color: "var(--pink-deep)",
-                    display: "grid", placeItems: "center",
-                  }}>
-                  <Icon name="speaker" size={18} />
-                </button>
-              </div>
-              <div className="flash-back-hanzi">{current.hanzi}</div>
-              <div className="flash-pinyin">{current.pinyin}</div>
-              <div className="flash-meaning">{current.meaning}</div>
-              {current.example && (
-                <div className="flash-example">
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="flash-example-hanzi">{current.example}</div>
-                    </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); speak(current.example!); }}
-                      style={{
-                        width: 32, height: 32, borderRadius: 10,
-                        background: "rgba(255,255,255,0.7)", color: "var(--pink-deep)",
-                        display: "grid", placeItems: "center", flexShrink: 0,
-                      }}>
-                      <Icon name="speaker" size={14} />
-                    </button>
-                  </div>
+        <div className={`card-stage ${noteValue || showNote ? "with-note" : ""}`}>
+          <div className="flash-card-wrap">
+            <div className={`flash-card ${flipped ? "flipped" : ""}`} onClick={onFlip}>
+              <div className="flash-face front">
+                <div className="hanzi-big">{current.hanzi}</div>
+                <div style={{ position: "absolute", top: 22, right: 22, display: "flex", gap: 8 }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); onToggleStar(current.hanzi); }}
+                    title="Ghim từ này (S)"
+                    style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: isStarred ? "#fbe7a3" : "var(--pink-pale)",
+                      color: isStarred ? "#a87810" : "var(--pink-deep)",
+                      display: "grid", placeItems: "center",
+                      fontSize: 18, transition: "background .12s",
+                    }}>
+                    {isStarred ? "★" : "☆"}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setShowNote(v => !v); }}
+                    title="Ghi chú cá nhân (N)"
+                    style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: showNote ? "var(--pink)" : "var(--pink-pale)",
+                      color: showNote ? "#fff" : "var(--pink-deep)",
+                      display: "grid", placeItems: "center",
+                      position: "relative",
+                    }}>
+                    <Icon name="book" size={16} />
+                    {noteValue && <span className="note-presence-dot"></span>}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); speak(current.hanzi); }}
+                    style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: "var(--pink-pale)", color: "var(--pink-deep)",
+                      display: "grid", placeItems: "center",
+                    }}
+                    title="Phát âm">
+                    <Icon name="speaker" size={18} />
+                  </button>
                 </div>
-              )}
-              <div className="flash-hint">{t("rate_hint")}</div>
+                <div className="flash-hint">
+                  {t("flip_hint_1")} <span className="kbd">Space</span> {t("flip_hint_2")}
+                </div>
+              </div>
+
+              <div className="flash-face back">
+                <div style={{ position: "absolute", top: 22, right: 22, display: "flex", gap: 8 }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); onToggleStar(current.hanzi); }}
+                    style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: isStarred ? "#fbe7a3" : "var(--pink-pale)",
+                      color: isStarred ? "#a87810" : "var(--pink-deep)",
+                      display: "grid", placeItems: "center",
+                      fontSize: 18,
+                    }}>
+                    {isStarred ? "★" : "☆"}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setShowNote(v => !v); }}
+                    title="Ghi chú cá nhân (N)"
+                    style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: showNote ? "var(--pink)" : "var(--pink-pale)",
+                      color: showNote ? "#fff" : "var(--pink-deep)",
+                      display: "grid", placeItems: "center",
+                      position: "relative",
+                    }}>
+                    <Icon name="book" size={16} />
+                    {noteValue && <span className="note-presence-dot"></span>}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); speak(current.hanzi); }}
+                    style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: "var(--pink-pale)", color: "var(--pink-deep)",
+                      display: "grid", placeItems: "center",
+                    }}>
+                    <Icon name="speaker" size={18} />
+                  </button>
+                </div>
+                <div className="flash-back-hanzi">{current.hanzi}</div>
+                <div className="flash-pinyin">{current.pinyin}</div>
+                <div className="flash-meaning">{current.meaning}</div>
+                {current.example && (
+                  <div className="flash-example">
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="flash-example-hanzi">{current.example}</div>
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); speak(current.example!); }}
+                        style={{
+                          width: 32, height: 32, borderRadius: 10,
+                          background: "rgba(255,255,255,0.7)", color: "var(--pink-deep)",
+                          display: "grid", placeItems: "center", flexShrink: 0,
+                        }}>
+                        <Icon name="speaker" size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="flash-hint">{t("rate_hint")}</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {showNote && (
-          <div onClick={e => e.stopPropagation()} style={{
-            width: "min(640px, 90%)",
-            margin: "12px auto 0",
-            background: "var(--elev)", borderRadius: 16, padding: 16,
-            boxShadow: "var(--shadow-card)", flexShrink: 0,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          {(noteValue || showNote) && (
+            <aside className="flash-note-pin" onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <Icon name="book" size={14} stroke={2} />
               <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-soft)" }}>
                 {t("personal_note")} — {current.hanzi}
               </span>
-              <button onClick={() => setShowNote(false)} style={{ marginLeft: "auto", color: "var(--ink-mute)" }}>
+              <button onClick={() => setShowNote(v => !v)} style={{ marginLeft: "auto", color: "var(--ink-mute)" }}>
                 <Icon name="x" size={14} />
               </button>
-            </div>
-            <textarea
-              value={noteDraft}
-              onChange={e => setNoteDraft(e.target.value)}
-              onBlur={() => onSaveNote(current.hanzi, noteDraft)}
-              placeholder={t("note_placeholder")}
-              style={{
-                width: "100%", minHeight: 60, maxHeight: 120, resize: "vertical",
-                background: "var(--surface-2)", border: "none", borderRadius: 10,
-                padding: 12, fontSize: 13, fontFamily: "inherit",
-                color: "var(--ink)", outline: "none", boxSizing: "border-box",
-              }}
-            />
-            <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 6, textAlign: "right" }}>
-              {t("note_autosave")}
-            </div>
-          </div>
-        )}
+              </div>
+              <textarea
+                value={noteDraft}
+                onChange={e => setNoteDraft(e.target.value)}
+                onBlur={() => onSaveNote(current.hanzi, noteDraft)}
+                placeholder={t("note_placeholder")}
+                className="flash-note-input"
+              />
+              <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 6, textAlign: "right" }}>
+                {t("note_autosave")}
+              </div>
+            </aside>
+          )}
+        </div>
 
         <div className="flash-actions">
           <button className="flash-btn red" onClick={() => mark(3)} title={`${t("weak")} (1)`}>
@@ -443,6 +442,11 @@ export function FlashcardView({
                     </span>
                     {starred[w.hanzi] && (
                       <span style={{ color: "var(--yellow)", marginLeft: 4, fontSize: 12 }}>★</span>
+                    )}
+                    {notes[w.hanzi] && (
+                      <span className="word-note-mark" title="Có ghi chú">
+                        <Icon name="book" size={11} stroke={2.2} />
+                      </span>
                     )}
                   </div>
                   <div className="word-info-meta">{w.meaning}</div>
