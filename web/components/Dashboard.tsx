@@ -85,6 +85,10 @@ export function Dashboard({
   onOpenWord,
 }: DashboardProps) {
   const { t, lang } = useLang();
+  const labeledTotal = stats.learned + stats.unsure + stats.weak;
+  const deckTotal = stats.deckSize || (selectedLevel == null
+    ? Object.values(levelTotals).reduce((sum, count) => sum + count, 0)
+    : levelTotals[selectedLevel] || 0);
 
   const segments = [
     { value: stats.learned, color: "var(--green)" },
@@ -92,7 +96,6 @@ export function Dashboard({
     { value: stats.weak, color: "var(--red)" },
     { value: stats.newWords, color: "var(--purple)" },
   ];
-  const total = stats.learned + stats.unsure + stats.weak + stats.newWords;
   const greeting = timeGreeting(t);
   const dateLocale = lang === "en" ? "en-US" : lang === "zh" ? "zh-CN" : "vi-VN";
 
@@ -195,9 +198,9 @@ export function Dashboard({
             <Donut segments={segments} />
             <div className="donut-center">
               <div>
-                <div className="donut-num">{total}</div>
+                <div className="donut-num">{labeledTotal}</div>
                 <div className="donut-label">
-                  trên {stats.deckSize || levelTotals[selectedLevel ?? 1] || 0} {t("vocab_unit")}
+                  trên {deckTotal} {t("vocab_unit")}
                 </div>
               </div>
             </div>

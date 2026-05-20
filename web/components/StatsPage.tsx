@@ -22,6 +22,13 @@ interface StatsPageProps {
 
 const HEAT_COLORS = ["#fbeef1", "#f6c8d2", "#e58aa0", "#d56a85", "#a83d57"];
 
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function StatsPage({ levelStats, totalLearned = 0, studySessions = [] }: StatsPageProps) {
   const { t } = useLang();
   const [range, setRange] = useState("30");
@@ -30,24 +37,37 @@ export function StatsPage({ levelStats, totalLearned = 0, studySessions = [] }: 
   const accPct = useMemo(() => computeAccuracy(studySessions), [studySessions]);
 
   const heatmap = useMemo(() => {
-    const sessionMap = new Map<string, number>();
+    const sessionMap = new Map<string, { reviewed: number; accessed: number }>();
     for (const s of studySessions) {
-      sessionMap.set(s.study_date.slice(0, 10), s.reviewed_count);
+      sessionMap.set(s.study_date.slice(0, 10), {
+        reviewed: s.reviewed_count,
+        accessed: s.accessed_count,
+      });
     }
     const today = new Date();
-    const arr: number[] = [];
-    for (let i = 83; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const count = sessionMap.get(dateStr) ?? 0;
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const mondayOffset = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - mondayOffset - 77);
+    const arr: { date: string; value: number; reviewed: number; accessed: number }[] = [];
+    for (let i = 0; i < 84; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateStr = localDateKey(d);
+      const session = sessionMap.get(dateStr);
+      const count = session?.reviewed ?? 0;
       let v: number;
-      if (count === 0) v = 0;
+      if (count === 0 && (session?.accessed ?? 0) > 0) v = 1;
+      else if (count === 0) v = 0;
       else if (count < 10) v = 1;
       else if (count < 20) v = 2;
       else if (count < 30) v = 3;
       else v = 4;
-      arr.push(v);
+      arr.push({
+        date: dateStr,
+        value: v,
+        reviewed: count,
+        accessed: session?.accessed ?? 0,
+      });
     }
     return arr;
   }, [studySessions]);
@@ -144,8 +164,12 @@ export function StatsPage({ levelStats, totalLearned = 0, studySessions = [] }: 
             gridAutoFlow: "column",
             gap: 4,
           }}>
-            {heatmap.map((v, i) => (
-              <div key={i} style={{ background: HEAT_COLORS[v], borderRadius: 4 }}></div>
+            {heatmap.map((day) => (
+              <div
+                key={day.date}
+                title={`${day.date}: ${day.reviewed} từ đã ôn`}
+                style={{ background: HEAT_COLORS[day.value], borderRadius: 4 }}
+              ></div>
             ))}
           </div>
         </div>
